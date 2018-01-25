@@ -1,0 +1,22 @@
+{
+	"name": "dserialize",
+	"authors": [
+		"Héctor Barreras Almarcha @Dechcaudron"
+	],
+	"description": "A simple (de)serialization library.",
+	"copyright": "Copyright © 2018, Héctor Barreras Almarcha @Dechcaudron",
+	"license": "MIT",
+
+	"configurations": [
+        {
+            "name": "unittest",
+            "targetType": "executable",
+            "preBuildCommands": ["dub run unit-threaded -c gen_ut_main -- -f build/ut.d"],
+            "mainSourceFile": "build/ut.d",
+            "excludedSourceFiles": ["src/app.d"],
+            "dependencies": {
+                "unit-threaded": "~>0.7.36"
+            }
+        }
+    ]
+}
