@@ -12,3 +12,4 @@ dserialize-test-*
 *.o
 *.obj
 *.lst
+build/

@@ -28,7 +28,7 @@ public bool isSerializable(T)() pure
     );
 }
 
-public string getSerializationID(alias member)() pure
+template serializationID(alias member)
 if (hasUDA!(member, Serialize) ||
     hasUDA!(member, JustSerialize) ||
     hasUDA!(member, JustDeserialize))
@@ -42,26 +42,42 @@ if (hasUDA!(member, Serialize) ||
     else
         static assert (false);
 
-    pragma(msg, UDAs);
-
     enum usesAutomaticID = is(UDAs[0]); // UDA defined without arguments, used as type rather than a struct value
     static if (usesAutomaticID)
-        return __traits(identifier, member);
+        enum string serializationID = __traits(identifier, member);
     else
-        return UDAs[0].serializationID;
+        enum string serializationID = UDAs[0].serializationID;
 }
 
-
-/** 
-    Enforces at CT the given symbol is readable, so as to ensure it
-    can be serialized if marked as to be so 
-**/
-public void enforceMemberIsReadable(alias member)() pure
+template memberIsReadable(alias member)
 {
-    static assert(is(typeof(
-        {
-            auto data = member;     
-        }()
-    )), 
-        "Member %s marked to be serialized, but it is not readable.".format(member.stringof));
+    enum memberIsReadable = is(
+        typeof(
+            {
+                auto data = member;
+            }()
+        )
+    );
+}
+
+template memberIsWritable(alias member)
+{
+    enum memberIsWritable = is(
+        typeof(
+            {
+                member = memberWriteType!(member).init;
+            }()
+        )
+    );
+}
+
+template memberWriteType(alias member)
+{
+    static if (is(typeof(member)))
+            alias memberWriteType = typeof(member);
+        else static if (isCallable!member && 
+                        Parameters!(member).length == 1)
+            alias memberWriteType = Parameters!member[0];
+        else
+            static assert(false);
 }

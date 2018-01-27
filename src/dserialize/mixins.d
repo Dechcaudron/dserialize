@@ -23,31 +23,20 @@ mixin template serializationCode()
             return typeof(this).stringof;
     }
 
-    // There are CT limitations that prevent this method from being const
-    public dserialize.serialization_bundle.SerializationBundle serialize()
+    public dserialize.serialization_bundle.SerializationBundle serialize() const
     {
         import dserialize.attributes : Serialize, JustSerialize;
         import dserialize.serialization_bundle : SerializationBundle;
-        import std.format : format;
-        import std.meta : Alias;
-        import std.traits: isBasicType, hasUDA;
+        import std.traits: getSymbolsByUDA;
 
         auto bundle = new SerializationBundle(ownTypeSerializationID);
 
         static if (is(typeof(this) == struct))
         {
-            static foreach (string memberName; __traits(allMembers, typeof(this)))//getSymbolsByUDA!(Serialize, JustSerialize))
-            {
-                {
-                    alias member = Alias!(mixin(memberName));
-                    static if (hasUDA!(member, Serialize) ||
-                            hasUDA!(member, JustSerialize))
-                    {
-                        dserialize.ct_info.enforceMemberIsReadable!memberName;
-                        bundle.put(dserialize.ct_info.getSerializationID!member, member);
-                    }
-                }
-            }
+            static foreach (alias member; getSymbolsByUDA!(typeof(this), Serialize))
+                serializeMember!member(bundle);
+            static foreach (alias member; getSymbolsByUDA!(typeof(this), JustSerialize))
+                serializeMember!member(bundle);
         }
         else
             static assert (false, "Type not supported by dserialize");
@@ -55,48 +44,52 @@ mixin template serializationCode()
         return bundle;
     }
 
-    private template WritableMemberValueT(alias member)
-    {
-        import std.traits : isCallable, Parameters;
-
-        static if (is(typeof(member)))
-            alias WritableMemberValueT = typeof(member);
-        else static if (isCallable!member && 
-                        Parameters!(member).length == 1)
-            alias WritableMemberValueT = Parameters!member[0];
-        else
-            static assert(false);
-    }
-
     public this(dserialize.serialization_bundle.SerializationBundle bundle)
     {
         import dserialize.attributes : Serialize, JustDeserialize;
         import std.format : format;
-        import std.traits : getSymbolsByUDA;
+        import std.meta : Alias;
+        import std.traits : hasUDA;
 
-        void enforceMemberIsWritable(alias member)()
-        {
-            static assert(
-                is(typeof(
-                    {
-                        member = WritableMemberValueT!(member).init;
-                    }()
-                )),
-                format!("Member %s marked to be deserialized, but it cannot be written to.",
-                        member.stringof)
-            );
-        }
+        pragma(msg, typeof(__traits(allMembers, typeof(this))));
 
         static if (is(typeof(this) == struct))
-            static foreach (alias member; getSymbolsByUDA!(Serialize, JustDeserialize))
+            static foreach (string memberName; __traits(allMembers, typeof(this)))
             {
-                enforceMemberIsWritable!member;
-                member = bundle.get!WritableMemberValueT(dserialize.ct_info.getSerializationID!member);
-                assert(false);
+                {
+                    pragma(msg, memberName);
+                    alias member = Alias!(mixin(memberName));
+                    pragma(msg, __traits(getAttributes, member));
+                    static if (hasUDA!(member, Serialize) ||
+                               hasUDA!(member, JustDeserialize))
+                    {
+                      //  pragma(msg, memberName);
+                        static assert(
+                            dserialize.ct_info.memberIsWritable!member,
+                            format("Member `%s` marked to be serialized, but it cannot be written to", memberName)
+                        );
+                        member = bundle.get!(dserialize.ct_info.memberWriteType!member)
+                            (dserialize.ct_info.serializationID!member);
+                    }
+                }
             }
         else
             static assert(false);
-        
+    }
+
+    private void serializeMember(alias member)
+        (dserialize.serialization_bundle.SerializationBundle bundle) const
+    {
+        import std.format : format;
+
+        enum memberName = __traits(identifier, member);
+
+        static assert(
+            dserialize.ct_info.memberIsReadable!member,
+            format("Member `%s` marked to be serialized, but it is not readable", memberName)
+        );
+
+        bundle.put(dserialize.ct_info.serializationID!member, member);
     }
 }
 
@@ -117,7 +110,7 @@ unittest
         char char_;
 
         @property @JustSerialize
-        char charProperty()
+        char charProperty() const
         {
             return char_;
         }

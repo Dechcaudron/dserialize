@@ -5,7 +5,8 @@
 	],
 	"description": "A simple (de)serialization library.",
 	"copyright": "Copyright © 2018, Héctor Barreras Almarcha @Dechcaudron",
-	"license": "MIT",
+    "license": "MIT",
+    "targetPath": "build/",
 
 	"configurations": [
         {
